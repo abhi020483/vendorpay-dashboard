@@ -285,6 +285,194 @@ export async function registerRoutes(
     }
   });
 
+  // ============ BULK IMPORT API ============
+
+  // POST /api/import/vendors — bulk import vendors as JSON array
+  app.post("/api/import/vendors", async (req, res) => {
+    const vendors = req.body;
+    if (!Array.isArray(vendors)) return res.status(400).json({ error: "Expected JSON array of vendors" });
+    let created = 0;
+    for (const v of vendors) {
+      try {
+        await storage.createVendor({
+          name: v.name || v.VendorName || v.vendorName || "Unknown",
+          category: v.category || v.Category || "Regular",
+          service: v.service || v.ServiceType || v.serviceType || "General Services",
+          contactPerson: v.contactPerson || v.ContactPerson || null,
+          email: v.email || v.Email || null,
+          phone: v.phone || v.Phone || null,
+          gstin: v.gstin || v.GSTIN || null,
+          pan: v.pan || v.PAN || v.panNo || null,
+          bankAccount: v.bankAccount || v.BankAccount || null,
+          ifsc: v.ifsc || v.IFSC || null,
+          address: v.address || v.Address || null,
+          status: v.status || v.Status || "Active",
+        });
+        created++;
+      } catch (err) { /* skip duplicates */ }
+    }
+    res.json({ message: `Imported ${created} vendors`, count: created });
+  });
+
+  // POST /api/import/invoices — bulk import invoices as JSON array
+  app.post("/api/import/invoices", async (req, res) => {
+    const invoices = req.body;
+    if (!Array.isArray(invoices)) return res.status(400).json({ error: "Expected JSON array of invoices" });
+
+    const allVendors = await storage.getVendors();
+    const vendorMap = new Map<string, number>();
+    allVendors.forEach(v => vendorMap.set(v.name.toLowerCase(), v.id));
+
+    let created = 0;
+    let vendorsCreated = 0;
+    for (const inv of invoices) {
+      const vendorName = inv.vendorName || inv.VendorName || inv["Vendor Name"] || "";
+      let vendorId = inv.vendorId;
+
+      // Auto-resolve vendor by name if vendorId not provided
+      if (!vendorId && vendorName) {
+        vendorId = vendorMap.get(vendorName.toLowerCase());
+        // Auto-create vendor if not found
+        if (!vendorId) {
+          const newVendor = await storage.createVendor({
+            name: vendorName,
+            category: "Regular",
+            service: "General Services",
+            status: "Active",
+            contactPerson: null, email: null, phone: null,
+            gstin: null, pan: null, bankAccount: null, ifsc: null, address: null,
+          });
+          vendorId = newVendor.id;
+          vendorMap.set(vendorName.toLowerCase(), vendorId);
+          vendorsCreated++;
+        }
+      }
+      if (!vendorId) continue;
+
+      const amount = parseFloat(inv.amount || inv.BaseAmount || inv.baseAmount || 0);
+      const gst = parseFloat(inv.gstAmount || inv.GSTAmount || inv.gst || 0);
+      const tds = parseFloat(inv.tdsAmount || inv.TDSAmount || inv.tds || 0);
+
+      try {
+        await storage.createInvoice({
+          vendorId,
+          invoiceNumber: inv.invoiceNumber || inv.InvoiceNumber || inv["Invoice No"] || `INV-${Date.now()}`,
+          invoiceDate: inv.invoiceDate || inv.InvoiceDate || new Date().toISOString().split("T")[0],
+          receiptDate: inv.receiptDate || inv.ReceiptDate || inv.invoiceDate || inv.InvoiceDate || new Date().toISOString().split("T")[0],
+          acceptanceDate: inv.acceptanceDate || inv.AcceptanceDate || null,
+          paymentDate: inv.paymentDate || inv.PaymentDate || null,
+          amount,
+          gstAmount: gst,
+          tdsAmount: tds,
+          netPayable: parseFloat(inv.netPayable || inv.NetPayable || 0) || (amount + gst - tds),
+          status: inv.status || inv.Status || "Pending",
+          description: inv.description || inv.Description || null,
+          paymentMode: inv.paymentMode || inv.PaymentMode || null,
+          paymentReference: inv.paymentReference || inv.PaymentReference || null,
+        });
+        created++;
+      } catch (err) { /* skip errors */ }
+    }
+    res.json({ message: `Imported ${created} invoices, auto-created ${vendorsCreated} vendors`, invoices: created, vendors: vendorsCreated });
+  });
+
+  // POST /api/import/tally-xml — accept TallyPrime XML voucher data
+  app.post("/api/import/tally-xml", async (req, res) => {
+    const rawBody = req.body;
+    // Accept raw XML string or JSON with xml field
+    const xml = typeof rawBody === "string" ? rawBody : rawBody?.xml;
+    if (!xml) return res.status(400).json({ error: "Expected XML body or JSON with 'xml' field" });
+
+    // Simple XML parser for Tally voucher export format
+    const vouchers: Array<any> = [];
+    const voucherRegex = /<VOUCHER[^>]*>([\s\S]*?)<\/VOUCHER>/gi;
+    let match;
+    while ((match = voucherRegex.exec(xml)) !== null) {
+      const block = match[1];
+      const get = (tag: string) => {
+        const m = block.match(new RegExp(`<${tag}>([^<]*)</${tag}>`, "i"));
+        return m ? m[1].trim() : "";
+      };
+      vouchers.push({
+        date: get("DATE"),
+        voucherType: get("VOUCHERTYPENAME"),
+        voucherNumber: get("VOUCHERNUMBER"),
+        partyName: get("PARTYLEDGERNAME"),
+        amount: Math.abs(parseFloat(get("AMOUNT")) || 0),
+        narration: get("NARRATION"),
+      });
+    }
+
+    if (vouchers.length === 0) {
+      return res.status(400).json({ error: "No vouchers found in XML. Ensure it contains <VOUCHER> elements." });
+    }
+
+    // Get or create vendors
+    const allVendors = await storage.getVendors();
+    const vendorMap = new Map<string, number>();
+    allVendors.forEach(v => vendorMap.set(v.name.toLowerCase(), v.id));
+
+    let invoicesCreated = 0;
+    let vendorsCreated = 0;
+
+    for (const v of vouchers) {
+      if (!v.partyName) continue;
+
+      let vendorId = vendorMap.get(v.partyName.toLowerCase());
+      if (!vendorId) {
+        const newVendor = await storage.createVendor({
+          name: v.partyName, category: "Regular", service: "General Services",
+          status: "Active", contactPerson: null, email: null, phone: null,
+          gstin: null, pan: null, bankAccount: null, ifsc: null, address: null,
+        });
+        vendorId = newVendor.id;
+        vendorMap.set(v.partyName.toLowerCase(), vendorId);
+        vendorsCreated++;
+      }
+
+      // Convert Tally date (YYYYMMDD) to YYYY-MM-DD
+      const dateStr = v.date.length === 8
+        ? `${v.date.slice(0, 4)}-${v.date.slice(4, 6)}-${v.date.slice(6, 8)}`
+        : v.date;
+
+      const isPurchase = /purchase|journal/i.test(v.voucherType);
+      const status = /payment/i.test(v.voucherType) ? "Paid" : "Pending";
+
+      await storage.createInvoice({
+        vendorId,
+        invoiceNumber: v.voucherNumber || `TALLY-${Date.now()}`,
+        invoiceDate: dateStr,
+        receiptDate: dateStr,
+        acceptanceDate: status === "Paid" ? dateStr : null,
+        paymentDate: status === "Paid" ? dateStr : null,
+        amount: v.amount,
+        gstAmount: 0,
+        tdsAmount: 0,
+        netPayable: v.amount,
+        status,
+        description: v.narration || `${v.voucherType} voucher`,
+        paymentMode: /payment/i.test(v.voucherType) ? "NEFT" : null,
+        paymentReference: null,
+      });
+      invoicesCreated++;
+    }
+
+    res.json({
+      message: `Imported ${invoicesCreated} vouchers from Tally XML`,
+      vouchers: invoicesCreated,
+      vendors: vendorsCreated,
+    });
+  });
+
+  // DELETE /api/import/clear — clear all data for fresh import
+  app.delete("/api/import/clear", async (_req, res) => {
+    const invoices = await storage.getInvoices();
+    for (const inv of invoices) await storage.deleteInvoice(inv.id);
+    const vendors = await storage.getVendors();
+    for (const v of vendors) await storage.deleteVendor(v.id);
+    res.json({ message: "All data cleared", vendorsDeleted: vendors.length, invoicesDeleted: invoices.length });
+  });
+
   // Seed sample data
   app.post("/api/seed", async (_req, res) => {
     const existingVendors = await storage.getVendors();
