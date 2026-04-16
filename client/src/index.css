@@ -1,0 +1,160 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* VendorPay Dashboard — spec color palette */
+:root {
+  --button-outline: rgba(0,0,0, .10);
+  --badge-outline: rgba(0,0,0, .05);
+  --opaque-button-border-intensity: -8;
+  --elevate-1: rgba(0,0,0, .03);
+  --elevate-2: rgba(0,0,0, .08);
+  /* Spec: main page bg #F5F5F0 */
+  --background: 60 14% 96%;
+  --foreground: 215 33% 15%;
+  --border: 220 10% 88%;
+  /* Spec: card bg #FFFFFF */
+  --card: 0 0% 100%;
+  --card-foreground: 215 33% 15%;
+  --card-border: 220 10% 92%;
+  /* Spec: sidebar bg #1e2a3b */
+  --sidebar: 215 33% 17%;
+  --sidebar-foreground: 0 0% 100%;
+  --sidebar-border: 215 30% 23%;
+  --sidebar-primary: 217 91% 60%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 215 30% 25%;
+  --sidebar-accent-foreground: 0 0% 100%;
+  --sidebar-ring: 217 91% 60%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 215 33% 15%;
+  --popover-border: 220 10% 88%;
+  /* Spec: primary accent #3B82F6 */
+  --primary: 217 91% 60%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 15% 92%;
+  --secondary-foreground: 215 33% 15%;
+  --muted: 220 12% 93%;
+  --muted-foreground: 220 8% 46%;
+  --accent: 217 40% 94%;
+  --accent-foreground: 215 33% 15%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --input: 220 10% 80%;
+  --ring: 217 91% 60%;
+  /* Status colors: Paid=Green, Pending=Amber, Accepted=Blue, Rejected=Red */
+  --status-paid: 142 71% 45%;
+  --status-pending: 38 92% 50%;
+  --status-accepted: 217 91% 60%;
+  --status-rejected: 0 84% 60%;
+  --chart-1: 217 91% 60%;
+  --chart-2: 142 71% 45%;
+  --chart-3: 38 92% 50%;
+  --chart-4: 260 55% 55%;
+  --chart-5: 340 60% 55%;
+  --font-sans: "General Sans", "Inter", -apple-system, sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: "JetBrains Mono", monospace;
+  --radius: .5rem;
+  --shadow-2xs: 0px 1px 2px rgba(0,0,0,0.04);
+  --shadow-xs: 0px 1px 3px rgba(0,0,0,0.06);
+  --shadow-sm: 0px 2px 4px rgba(0,0,0,0.06);
+  --shadow: 0px 2px 6px rgba(0,0,0,0.08);
+  --shadow-md: 0px 4px 8px rgba(0,0,0,0.08);
+  --shadow-lg: 0px 8px 16px rgba(0,0,0,0.1);
+  --shadow-xl: 0px 12px 24px rgba(0,0,0,0.12);
+  --shadow-2xl: 0px 16px 32px rgba(0,0,0,0.15);
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --primary-border: hsl(var(--primary));
+  --secondary-border: hsl(var(--secondary));
+  --muted-border: hsl(var(--muted));
+  --accent-border: hsl(var(--accent));
+  --destructive-border: hsl(var(--destructive));
+}
+
+.dark {
+  --button-outline: rgba(255,255,255, .10);
+  --badge-outline: rgba(255,255,255, .05);
+  --opaque-button-border-intensity: 9;
+  --elevate-1: rgba(255,255,255, .04);
+  --elevate-2: rgba(255,255,255, .09);
+  --background: 215 33% 7%;
+  --foreground: 220 10% 95%;
+  --border: 215 15% 18%;
+  --card: 215 20% 10%;
+  --card-foreground: 220 10% 95%;
+  --card-border: 215 15% 15%;
+  --sidebar: 215 33% 8%;
+  --sidebar-foreground: 0 0% 95%;
+  --sidebar-border: 215 20% 14%;
+  --sidebar-primary: 217 85% 55%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 215 20% 16%;
+  --sidebar-accent-foreground: 0 0% 90%;
+  --sidebar-ring: 217 85% 55%;
+  --popover: 215 20% 12%;
+  --popover-foreground: 220 10% 95%;
+  --popover-border: 215 15% 18%;
+  --primary: 217 85% 55%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 215 12% 18%;
+  --secondary-foreground: 220 10% 95%;
+  --muted: 215 10% 20%;
+  --muted-foreground: 220 8% 60%;
+  --accent: 217 20% 18%;
+  --accent-foreground: 220 10% 95%;
+  --destructive: 0 84% 55%;
+  --destructive-foreground: 0 0% 100%;
+  --input: 215 10% 28%;
+  --ring: 217 85% 55%;
+  --status-paid: 142 65% 50%;
+  --status-pending: 38 85% 55%;
+  --status-accepted: 217 85% 55%;
+  --status-rejected: 0 78% 55%;
+  --chart-1: 217 85% 60%;
+  --chart-2: 142 65% 50%;
+  --chart-3: 38 85% 55%;
+  --chart-4: 260 50% 62%;
+  --chart-5: 340 55% 60%;
+  --shadow-2xs: 0px 1px 2px rgba(0,0,0,0.2);
+  --shadow-xs: 0px 1px 3px rgba(0,0,0,0.25);
+  --shadow-sm: 0px 2px 4px rgba(0,0,0,0.3);
+  --shadow: 0px 2px 6px rgba(0,0,0,0.3);
+  --shadow-md: 0px 4px 8px rgba(0,0,0,0.35);
+  --shadow-lg: 0px 8px 16px rgba(0,0,0,0.4);
+  --shadow-xl: 0px 12px 24px rgba(0,0,0,0.4);
+  --shadow-2xl: 0px 16px 32px rgba(0,0,0,0.5);
+
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --primary-border: hsl(var(--primary));
+  --secondary-border: hsl(var(--secondary));
+  --muted-border: hsl(var(--muted));
+  --accent-border: hsl(var(--accent));
+  --destructive-border: hsl(var(--destructive));
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+}
+
+@layer utilities {
+  input[type="search"]::-webkit-search-cancel-button {
+    @apply hidden;
+  }
+  [contenteditable][data-placeholder]:empty::before {
+    content: attr(data-placeholder);
+    color: hsl(var(--muted-foreground));
+    pointer-events: none;
+  }
+}
