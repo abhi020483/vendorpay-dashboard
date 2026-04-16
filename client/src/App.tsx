@@ -4,6 +4,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import Login from "@/pages/login";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Vendors from "@/pages/vendors";
@@ -135,6 +136,12 @@ function AppRouter() {
 }
 
 function App() {
+  const [authed, setAuthed] = useState(() => sessionStorage.getItem("vendorpay_auth") === "1");
+
+  if (!authed) {
+    return <Login onLogin={() => setAuthed(true)} />;
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
