@@ -140,13 +140,32 @@ export async function registerRoutes(
       }
     });
 
-    // Monthly trend by invoice date (shows all invoices, not just paid)
+    // Monthly trend by invoice date
     const monthlyPayouts: Record<string, number> = {};
+    const monthlyCount: Record<string, number> = {};
     allInvoices.forEach(inv => {
       const date = inv.invoiceDate;
       if (date) {
         const month = date.substring(0, 7); // YYYY-MM
         monthlyPayouts[month] = (monthlyPayouts[month] || 0) + inv.netPayable;
+        monthlyCount[month] = (monthlyCount[month] || 0) + 1;
+      }
+    });
+
+    // Weekly trend by invoice date
+    const weeklyPayouts: Record<string, number> = {};
+    const weeklyCount: Record<string, number> = {};
+    allInvoices.forEach(inv => {
+      const date = inv.invoiceDate;
+      if (date) {
+        const d = new Date(date);
+        // Get ISO week start (Monday)
+        const day = d.getDay();
+        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+        const weekStart = new Date(d.setDate(diff));
+        const key = weekStart.toISOString().split("T")[0]; // YYYY-MM-DD of Monday
+        weeklyPayouts[key] = (weeklyPayouts[key] || 0) + inv.netPayable;
+        weeklyCount[key] = (weeklyCount[key] || 0) + 1;
       }
     });
 
@@ -221,6 +240,9 @@ export async function registerRoutes(
       serviceSplit,
       vendorBusiness: Object.values(vendorBusiness),
       monthlyPayouts,
+      monthlyCount,
+      weeklyPayouts,
+      weeklyCount,
       vendorAgeing,
       vendorAgeingBuckets,
     });

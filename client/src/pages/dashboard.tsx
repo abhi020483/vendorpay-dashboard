@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, Area, AreaChart,
+  PieChart, Pie, Cell, Legend, Area, AreaChart, ComposedChart, Line,
 } from "recharts";
 import { IndianRupee, Users, CheckCircle2, Clock, FileCheck } from "lucide-react";
 import { formatINR } from "@/lib/sla";
@@ -11,7 +13,22 @@ import { formatINR } from "@/lib/sla";
 const CHART_COLORS = ["#3B82F6", "#22C55E", "#F59E0B", "#8B5CF6", "#EF4444", "#06B6D4", "#F97316"];
 const AGEING_COLORS = ["#22C55E", "#84CC16", "#F59E0B", "#F97316", "#EF4444"];
 
+type ViewMode = "monthly" | "weekly";
+
+function formatWeekLabel(dateStr: string) {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+}
+
+function formatMonthLabel(month: string) {
+  const [y, m] = month.split("-");
+  const months = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${months[parseInt(m)]} ${y.slice(2)}`;
+}
+
 export default function Dashboard() {
+  const [viewMode, setViewMode] = useState<ViewMode>("monthly");
+
   const { data: analytics, isLoading } = useQuery<any>({
     queryKey: ["/api/analytics/summary"],
   });
@@ -55,9 +72,27 @@ export default function Dashboard() {
     }))
     .sort((a, b) => b.amount - a.amount);
 
-  const monthlyData = Object.entries(analytics.monthlyPayouts)
-    .map(([month, amount]) => ({ month, amount: amount as number }))
-    .sort((a, b) => a.month.localeCompare(b.month));
+  // Monthly data
+  const monthlyData = Object.entries(analytics.monthlyPayouts || {})
+    .map(([month, amount]) => ({
+      label: formatMonthLabel(month),
+      amount: amount as number,
+      count: (analytics.monthlyCount || {})[month] || 0,
+      sortKey: month,
+    }))
+    .sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+
+  // Weekly data
+  const weeklyData = Object.entries(analytics.weeklyPayouts || {})
+    .map(([week, amount]) => ({
+      label: formatWeekLabel(week),
+      amount: amount as number,
+      count: (analytics.weeklyCount || {})[week] || 0,
+      sortKey: week,
+    }))
+    .sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+
+  const trendData = viewMode === "monthly" ? monthlyData : weeklyData;
 
   const ageingData = Object.entries(analytics.ageingBuckets).map(([bucket, count], idx) => ({
     bucket, count: count as number, fill: AGEING_COLORS[idx] || AGEING_COLORS[4],
@@ -87,22 +122,58 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* Charts Row 1: Trend + Donut */}
+      {/* Trend Chart with Week/Month Toggle */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold">Monthly Payment Trends</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-semibold">
+                {viewMode === "monthly" ? "Monthly" : "Weekly"} Invoice Trends
+              </CardTitle>
+              <div className="flex gap-1 bg-muted rounded-lg p-0.5">
+                <Button
+                  size="sm"
+                  variant={viewMode === "weekly" ? "default" : "ghost"}
+                  className="h-7 text-xs px-3"
+                  onClick={() => setViewMode("weekly")}
+                >
+                  Weekly
+                </Button>
+                <Button
+                  size="sm"
+                  variant={viewMode === "monthly" ? "default" : "ghost"}
+                  className="h-7 text-xs px-3"
+                  onClick={() => setViewMode("monthly")}
+                >
+                  Monthly
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={monthlyData}>
+                <ComposedChart data={trendData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,10%,90%)" />
-                  <XAxis dataKey="month" tick={{ fontSize: 12 }} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12 }} tickLine={false} tickFormatter={(v) => `₹${(v / 100000).toFixed(0)}L`} />
-                  <Tooltip formatter={(value: number) => formatINR(value)} />
-                  <Area type="monotone" dataKey="amount" name="Payout" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.12} strokeWidth={2} />
-                </AreaChart>
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 11 }}
+                    tickLine={false}
+                    angle={viewMode === "weekly" ? -45 : 0}
+                    textAnchor={viewMode === "weekly" ? "end" : "middle"}
+                    height={viewMode === "weekly" ? 50 : 30}
+                  />
+                  <YAxis yAxisId="amount" tick={{ fontSize: 11 }} tickLine={false} tickFormatter={(v) => `₹${(v / 100000).toFixed(0)}L`} />
+                  <YAxis yAxisId="count" orientation="right" tick={{ fontSize: 11 }} tickLine={false} allowDecimals={false} />
+                  <Tooltip
+                    formatter={(value: number, name: string) =>
+                      name === "Amount" ? formatINR(value) : `${value} invoices`
+                    }
+                  />
+                  <Legend />
+                  <Area yAxisId="amount" type="monotone" dataKey="amount" name="Amount" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.12} strokeWidth={2} />
+                  <Line yAxisId="count" type="monotone" dataKey="count" name="Invoices" stroke="#F59E0B" strokeWidth={2} dot={{ r: 3 }} />
+                </ComposedChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
