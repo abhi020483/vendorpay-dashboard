@@ -140,11 +140,12 @@ export async function registerRoutes(
       }
     });
 
-    // Monthly payout trend
+    // Monthly trend by invoice date (shows all invoices, not just paid)
     const monthlyPayouts: Record<string, number> = {};
     allInvoices.forEach(inv => {
-      if (inv.paymentDate) {
-        const month = inv.paymentDate.substring(0, 7); // YYYY-MM
+      const date = inv.invoiceDate;
+      if (date) {
+        const month = date.substring(0, 7); // YYYY-MM
         monthlyPayouts[month] = (monthlyPayouts[month] || 0) + inv.netPayable;
       }
     });
