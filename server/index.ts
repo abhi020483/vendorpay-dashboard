@@ -3,6 +3,8 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { syncFromSheets } from "./googleSheets";
+import { storage } from "./storage";
 
 const app = express();
 const httpServer = createServer(app);
@@ -97,8 +99,24 @@ app.use((req, res, next) => {
       port,
       host,
     },
-    () => {
+    async () => {
       log(`serving on port ${port}`);
+
+      // Auto-sync from Google Sheets on startup if DB is empty
+      const sheetsId = process.env.GOOGLE_SHEETS_ID;
+      if (sheetsId) {
+        const vendors = await storage.getVendors();
+        if (vendors.length === 0) {
+          log("Database empty, auto-syncing from Google Sheets...");
+          try {
+            const result = await syncFromSheets(sheetsId);
+            await storage.upsertSyncConfig({ sheetsId, status: "success", lastSyncAt: new Date().toISOString() });
+            log(`Auto-sync complete: ${result.vendors} vendors, ${result.invoices} invoices`);
+          } catch (err: any) {
+            log(`Auto-sync failed: ${err.message}`);
+          }
+        }
+      }
     },
   );
 })();
