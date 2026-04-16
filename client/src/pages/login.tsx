@@ -6,28 +6,7 @@ import { Lock, Eye, EyeOff } from "lucide-react";
 const PASS = "onealpha";
 
 function AlphaMedLogo({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 400 100" className={className} xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="alphaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#4ADE80" />
-          <stop offset="50%" stopColor="#22C55E" />
-          <stop offset="100%" stopColor="#0EA5E9" />
-        </linearGradient>
-      </defs>
-      {/* Alpha circle */}
-      <circle cx="50" cy="50" r="42" stroke="url(#alphaGrad)" strokeWidth="10" fill="none" strokeLinecap="round" strokeDasharray="220 45" transform="rotate(-30 50 50)" />
-      {/* Inner dot */}
-      <circle cx="50" cy="50" r="6" fill="url(#alphaGrad)" />
-      {/* Arrow accent */}
-      <polygon points="88,45 98,50 88,55" fill="url(#alphaGrad)" />
-      {/* Text */}
-      <text x="110" y="62" fontFamily="General Sans, Inter, sans-serif" fontSize="46" fontWeight="700" fill="#4B5563">Alpha</text>
-      <text x="270" y="62" fontFamily="General Sans, Inter, sans-serif" fontSize="46" fontWeight="700" fill="#4B5563">Med</text>
-      {/* Small arrow after text */}
-      <polygon points="375,45 385,50 375,55" fill="url(#alphaGrad)" />
-    </svg>
-  );
+  return <img src="/AlphaMed Logo.jpg" alt="AlphaMed" className={className} />;
 }
 
 export default function Login({ onLogin }: { onLogin: () => void }) {
