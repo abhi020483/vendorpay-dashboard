@@ -23,28 +23,29 @@ export default function Ageing() {
 
   if (!analytics) return null;
 
-  // Calculate KPIs
+  // Calculate KPIs (45-day standard SLA)
   const paidInvoicesWithDays = (analytics.vendorAgeing || []).filter((v: any) => v.avgDays > 0);
   const avgTAT = paidInvoicesWithDays.length > 0
     ? Math.round(paidInvoicesWithDays.reduce((s: number, v: any) => s + v.avgDays, 0) / paidInvoicesWithDays.length)
     : 0;
 
   const pendingBuckets = analytics.ageingBuckets || {};
-  const overdueCount = (pendingBuckets["31-45"] || 0) + (pendingBuckets["46-60"] || 0) + (pendingBuckets["60+"] || 0);
+  // On-time = within 45 days (0-15, 16-30, 31-45). Overdue = 46+ days
+  const onTimeCount = (pendingBuckets["0-15"] || 0) + (pendingBuckets["16-30"] || 0) + (pendingBuckets["31-45"] || 0);
+  const overdueCount = (pendingBuckets["46-60"] || 0) + (pendingBuckets["60+"] || 0);
   const totalPending = Object.values(pendingBuckets).reduce((s: number, v: any) => s + v, 0);
-  const onTimeCount = (pendingBuckets["0-15"] || 0);
   const onTimeRate = totalPending > 0 ? Math.round((onTimeCount / totalPending) * 100) : 100;
 
   // Vendor-wise ageing buckets
   const vendorAgeingBuckets = analytics.vendorAgeingBuckets || [];
 
-  // Payment turnaround distribution
+  // Payment turnaround distribution (45-day SLA buckets)
   const turnaroundRanges = [
-    { range: "0-7d", min: 0, max: 7, count: 0 },
-    { range: "8-15d", min: 8, max: 15, count: 0 },
-    { range: "16-21d", min: 16, max: 21, count: 0 },
-    { range: "22-30d", min: 22, max: 30, count: 0 },
-    { range: "30+d", min: 31, max: 9999, count: 0 },
+    { range: "0-15d", min: 0, max: 15, count: 0 },
+    { range: "16-30d", min: 16, max: 30, count: 0 },
+    { range: "31-45d", min: 31, max: 45, count: 0 },
+    { range: "46-60d", min: 46, max: 60, count: 0 },
+    { range: "60+d", min: 61, max: 9999, count: 0 },
   ];
   (analytics.vendorAgeing || []).forEach((v: any) => {
     if (v.avgDays > 0) {
@@ -58,14 +59,14 @@ export default function Ageing() {
   return (
     <div className="p-6 space-y-6">
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="p-5">
             <div className="flex items-start gap-3">
               <div className="p-2 rounded-lg bg-primary/10"><Clock className="h-5 w-5 text-primary" /></div>
               <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Avg Turnaround</p>
-                <p className="text-[28px] font-bold leading-tight mt-1">{avgTAT}<span className="text-base font-normal text-muted-foreground ml-1">days</span></p>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Avg TAT</p>
+                <p className="text-[26px] font-bold leading-tight mt-1">{avgTAT}<span className="text-sm font-normal text-muted-foreground ml-1">d</span></p>
               </div>
             </div>
           </CardContent>
@@ -76,7 +77,7 @@ export default function Ageing() {
               <div className="p-2 rounded-lg bg-green-500/10"><TrendingUp className="h-5 w-5 text-green-600" /></div>
               <div>
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">On-time Rate</p>
-                <p className="text-[28px] font-bold leading-tight mt-1">{onTimeRate}<span className="text-base font-normal text-muted-foreground ml-1">%</span></p>
+                <p className="text-[26px] font-bold leading-tight mt-1">{onTimeRate}<span className="text-sm font-normal text-muted-foreground ml-1">%</span></p>
               </div>
             </div>
           </CardContent>
@@ -86,8 +87,30 @@ export default function Ageing() {
             <div className="flex items-start gap-3">
               <div className="p-2 rounded-lg bg-red-500/10"><AlertTriangle className="h-5 w-5 text-red-600" /></div>
               <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Overdue Invoices</p>
-                <p className="text-[28px] font-bold leading-tight mt-1">{overdueCount}</p>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Overdue (45d+)</p>
+                <p className="text-[26px] font-bold leading-tight mt-1">{overdueCount}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-amber-500/10"><AlertTriangle className="h-5 w-5 text-amber-600" /></div>
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Outstanding</p>
+                <p className="text-[20px] font-bold leading-tight mt-1">{formatINR(analytics.totalOutstanding || 0)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-blue-500/10"><Clock className="h-5 w-5 text-blue-600" /></div>
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Advances Paid</p>
+                <p className="text-[20px] font-bold leading-tight mt-1">{formatINR(analytics.totalAdvances || 0)}</p>
               </div>
             </div>
           </CardContent>
