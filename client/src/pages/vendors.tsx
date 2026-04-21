@@ -52,10 +52,29 @@ export default function Vendors() {
 
   const { data: vendors = [], isLoading } = useQuery<Vendor[]>({ queryKey: ["/api/vendors"] });
 
-  const { data: vendorInvoices = [] } = useQuery<Invoice[]>({
+  const { data: vendorInvoices = [], isLoading: loadingInvoices } = useQuery<Invoice[]>({
     queryKey: ["/api/vendors", selectedVendor?.id, "invoices"],
-    queryFn: () => fetch(`/api/vendors/${selectedVendor!.id}/invoices`).then(r => r.json()),
+    queryFn: async () => {
+      if (!selectedVendor) return [];
+      const res = await fetch(`/api/vendors/${selectedVendor.id}/invoices`);
+      if (!res.ok) throw new Error("Failed to fetch invoices");
+      return res.json();
+    },
     enabled: !!selectedVendor,
+    staleTime: 0,
+    refetchOnMount: true,
+  });
+
+  const { data: vendorPayments = [] } = useQuery<any[]>({
+    queryKey: ["/api/vendors", selectedVendor?.id, "payments"],
+    queryFn: async () => {
+      if (!selectedVendor) return [];
+      const res = await fetch(`/api/vendors/${selectedVendor.id}/payments`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!selectedVendor,
+    staleTime: 0,
   });
 
   const createMutation = useMutation({
@@ -174,14 +193,43 @@ export default function Vendors() {
                   <div><span className="text-muted-foreground">IFSC:</span> <span className="font-mono">{selectedVendor.ifsc || "—"}</span></div>
                 </div>
               </div>
+              {/* Summary cards */}
+              <div className="grid grid-cols-3 gap-3 mt-6">
+                <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                  <div className="text-[10px] uppercase text-muted-foreground font-medium">Total Invoices</div>
+                  <div className="text-lg font-bold mt-1">{vendorInvoices.length}</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {formatINR(vendorInvoices.reduce((s, i) => s + i.netPayable, 0))}
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg bg-amber-50 border border-amber-200">
+                  <div className="text-[10px] uppercase text-amber-700 font-medium">Outstanding</div>
+                  <div className="text-lg font-bold text-amber-700 mt-1">
+                    {formatINR(vendorInvoices.filter(i => i.status !== "Paid").reduce((s, i) => s + i.netPayable, 0))}
+                  </div>
+                  <div className="text-[10px] text-amber-600">
+                    {vendorInvoices.filter(i => i.status !== "Paid").length} pending
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+                  <div className="text-[10px] uppercase text-blue-700 font-medium">Advances Paid</div>
+                  <div className="text-lg font-bold text-blue-700 mt-1">
+                    {formatINR(vendorPayments.filter((p: any) => !p.invoiceId).reduce((s: number, p: any) => s + p.amount, 0))}
+                  </div>
+                  <div className="text-[10px] text-blue-600">
+                    {vendorPayments.filter((p: any) => !p.invoiceId).length} advance payments
+                  </div>
+                </div>
+              </div>
+
               <div className="mt-6">
-                <h3 className="text-sm font-semibold mb-3">Payment History</h3>
+                <h3 className="text-sm font-semibold mb-3">Invoice History {loadingInvoices && <span className="text-xs text-muted-foreground font-normal">(loading...)</span>}</h3>
                 {vendorInvoices.length > 0 ? (
                   <div className="overflow-x-auto border rounded-lg">
                     <table className="w-full text-xs">
                       <thead><tr className="bg-muted/30 border-b">
-                        {["Invoice #", "Date", "Amount", "Status", "Age"].map(h => (
-                          <th key={h} className={`py-2 px-3 font-semibold ${h === "Amount" || h === "Age" ? "text-right" : "text-left"}`}>{h}</th>
+                        {["Invoice #", "Date", "Base", "GST", "Net", "Status", "Age"].map(h => (
+                          <th key={h} className={`py-2 px-3 font-semibold ${["Base", "GST", "Net", "Age"].includes(h) ? "text-right" : "text-left"}`}>{h}</th>
                         ))}
                       </tr></thead>
                       <tbody>
@@ -189,7 +237,9 @@ export default function Vendors() {
                           <tr key={inv.id} className="border-b border-border/50">
                             <td className="py-2 px-3 font-mono">{inv.invoiceNumber}</td>
                             <td className="py-2 px-3">{formatDate(inv.invoiceDate)}</td>
-                            <td className="py-2 px-3 text-right">{formatINR(inv.netPayable)}</td>
+                            <td className="py-2 px-3 text-right">{formatINR(inv.amount)}</td>
+                            <td className="py-2 px-3 text-right text-muted-foreground">{inv.gstAmount ? formatINR(inv.gstAmount) : "—"}</td>
+                            <td className="py-2 px-3 text-right font-semibold">{formatINR(inv.netPayable)}</td>
                             <td className="py-2 px-3"><StatusBadge status={inv.status} /></td>
                             <td className="py-2 px-3 text-right">{getDaysAge(inv.receiptDate, inv.paymentDate)}d</td>
                           </tr>

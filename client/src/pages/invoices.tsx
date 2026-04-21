@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Search, Plus, Download, CheckCircle2, CreditCard } from "lucide-react";
-import { formatINR, formatDate, getDaysAge } from "@/lib/sla";
+import { formatINR, formatDate, getDaysAge, getDueClassification } from "@/lib/sla";
 import WorkflowIndicator from "@/components/WorkflowIndicator";
 import type { Vendor, Invoice } from "@shared/schema";
 
@@ -26,8 +26,8 @@ function statusBadgeClass(status: string) {
 }
 
 function ageBadgeClass(days: number) {
-  if (days <= 15) return "text-green-600";
-  if (days <= 30) return "text-amber-600";
+  if (days <= 30) return "text-green-600";
+  if (days <= 45) return "text-amber-600";
   return "text-red-600";
 }
 
@@ -145,8 +145,8 @@ export default function Invoices() {
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="border-b border-border bg-muted/30">
-                  {["Invoice #", "Vendor", "Inv. Date", "Receipt Date", "Net Payable", "Status", "Workflow", "Age", "Actions"].map(h => (
-                    <th key={h} className={`py-3 px-4 font-semibold text-xs uppercase tracking-wide text-muted-foreground ${h === "Net Payable" || h === "Age" ? "text-right" : "text-left"}`}>{h}</th>
+                  {["Invoice #", "Vendor", "Inv. Date", "Base Amount", "GST", "Net Payable", "Status", "Due", "Age", "Actions"].map(h => (
+                    <th key={h} className={`py-3 px-4 font-semibold text-xs uppercase tracking-wide text-muted-foreground ${["Base Amount", "GST", "Net Payable", "Age"].includes(h) ? "text-right" : "text-left"}`}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -154,17 +154,23 @@ export default function Invoices() {
                 {filtered.map(inv => {
                   const vendor = vendorMap.get(inv.vendorId);
                   const age = getDaysAge(inv.receiptDate, inv.paymentDate);
+                  const due = getDueClassification(age);
                   return (
                     <tr key={inv.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
                       <td className="py-3 px-4 font-mono text-xs font-medium">{inv.invoiceNumber}</td>
                       <td className="py-3 px-4">{vendor?.name || "—"}</td>
                       <td className="py-3 px-4 text-muted-foreground">{formatDate(inv.invoiceDate)}</td>
-                      <td className="py-3 px-4 text-muted-foreground">{formatDate(inv.receiptDate)}</td>
-                      <td className="py-3 px-4 text-right font-medium">{formatINR(inv.netPayable)}</td>
+                      <td className="py-3 px-4 text-right">{formatINR(inv.amount)}</td>
+                      <td className="py-3 px-4 text-right text-muted-foreground">{inv.gstAmount ? formatINR(inv.gstAmount) : "—"}</td>
+                      <td className="py-3 px-4 text-right font-semibold">{formatINR(inv.netPayable)}</td>
                       <td className="py-3 px-4">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${statusBadgeClass(inv.status)}`}>{inv.status}</span>
                       </td>
-                      <td className="py-3 px-4"><WorkflowIndicator status={inv.status} /></td>
+                      <td className="py-3 px-4">
+                        {inv.status !== "Paid" ? (
+                          <span className={`text-[11px] font-medium ${due.color}`}>{due.label}</span>
+                        ) : <span className="text-[11px] text-muted-foreground">—</span>}
+                      </td>
                       <td className={`py-3 px-4 text-right text-xs font-medium ${inv.status !== "Paid" ? ageBadgeClass(age) : "text-muted-foreground"}`}>{age}d</td>
                       <td className="py-3 px-4">
                         <div className="flex gap-1">
@@ -184,7 +190,7 @@ export default function Invoices() {
                   );
                 })}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={9} className="py-12 text-center text-muted-foreground">No invoices found</td></tr>
+                  <tr><td colSpan={10} className="py-12 text-center text-muted-foreground">No invoices found</td></tr>
                 )}
               </tbody>
             </table>

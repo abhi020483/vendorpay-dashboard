@@ -36,6 +36,17 @@ export const invoices = sqliteTable("invoices", {
   paymentReference: text("payment_reference"),
 });
 
+export const payments = sqliteTable("payments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  vendorId: integer("vendor_id").notNull(),
+  invoiceId: integer("invoice_id"), // null = advance/on-account payment
+  amount: real("amount").notNull(),
+  paymentDate: text("payment_date").notNull(),
+  paymentMode: text("payment_mode"),
+  reference: text("reference"),
+  description: text("description"),
+});
+
 export const syncConfig = sqliteTable("sync_config", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   sheetsId: text("sheets_id"),
@@ -46,11 +57,14 @@ export const syncConfig = sqliteTable("sync_config", {
 
 export const insertVendorSchema = createInsertSchema(vendors).omit({ id: true });
 export const insertInvoiceSchema = createInsertSchema(invoices).omit({ id: true });
+export const insertPaymentSchema = createInsertSchema(payments).omit({ id: true });
 export const insertSyncConfigSchema = createInsertSchema(syncConfig).omit({ id: true });
 
 export type InsertVendor = z.infer<typeof insertVendorSchema>;
 export type Vendor = typeof vendors.$inferSelect;
 export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
 export type Invoice = typeof invoices.$inferSelect;
+export type InsertPayment = z.infer<typeof insertPaymentSchema>;
+export type Payment = typeof payments.$inferSelect;
 export type SyncConfig = typeof syncConfig.$inferSelect;
 export type InsertSyncConfig = z.infer<typeof insertSyncConfigSchema>;

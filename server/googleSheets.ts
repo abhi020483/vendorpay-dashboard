@@ -178,7 +178,7 @@ export async function writeInvoiceStatus(
 }
 
 // Main sync: fetch CSV from Google Sheets -> parse -> insert into SQLite
-export async function syncFromSheets(spreadsheetId: string): Promise<{ vendors: number; invoices: number }> {
+export async function syncFromSheets(spreadsheetId: string): Promise<{ vendors: number; invoices: number; payments: number; advances: number }> {
   // 1. Clear existing data
   const existingInvoices = await storage.getInvoices();
   for (const inv of existingInvoices) await storage.deleteInvoice(inv.id);
@@ -238,13 +238,73 @@ export async function syncFromSheets(spreadsheetId: string): Promise<{ vendors: 
   }
 
   // 5. Insert invoices
+  await storage.deleteAllPayments();
+  const invoicesByNumber = new Map<string, { id: number; vendorId: number; amount: number }>();
   for (const row of invoiceRows) {
     const invoiceData = parseInvoice(row, vendorNameToId);
     if (invoiceData) {
-      await storage.createInvoice(invoiceData);
+      const created = await storage.createInvoice(invoiceData);
+      invoicesByNumber.set(invoiceData.invoiceNumber.toLowerCase().trim(), {
+        id: created.id,
+        vendorId: invoiceData.vendorId,
+        amount: invoiceData.netPayable,
+      });
       invoiceCount++;
     }
   }
 
-  return { vendors: vendorNameToId.size, invoices: invoiceCount };
+  // 6. Try to fetch Payments tab & match payments to invoices
+  let paymentCount = 0;
+  let advanceCount = 0;
+  try {
+    const paymentRows = await fetchSheetAsCSV(spreadsheetId, "Payments");
+    for (const row of paymentRows) {
+      const vendorName = findCol(row, "VendorName", "Vendor Name", "Vendor");
+      const vendorId = vendorNameToId.get(vendorName);
+      if (!vendorId) continue;
+
+      const amount = parseFloat(findCol(row, "Amount", "PaymentAmount", "Payment Amount")) || 0;
+      if (amount <= 0) continue;
+
+      const paymentDate = parseDate(findCol(row, "PaymentDate", "Payment Date", "Date")) || new Date().toISOString().split("T")[0];
+      const invoiceRef = findCol(row, "InvoiceNumber", "Invoice Number", "Invoice No", "Invoice #", "Against Invoice");
+      const mode = findCol(row, "PaymentMode", "Payment Mode", "Mode") || null;
+      const reference = findCol(row, "Reference", "Payment Reference", "Ref") || null;
+      const description = findCol(row, "Description", "Narration", "Remarks") || null;
+
+      let matchedInvoiceId: number | null = null;
+      if (invoiceRef) {
+        const match = invoicesByNumber.get(invoiceRef.toLowerCase().trim());
+        if (match && match.vendorId === vendorId) {
+          matchedInvoiceId = match.id;
+          // Mark the invoice as paid if fully paid
+          const existingPayments = await storage.getPaymentsByInvoice(match.id);
+          const totalPaid = existingPayments.reduce((s, p) => s + p.amount, 0) + amount;
+          if (totalPaid >= match.amount * 0.99) {
+            await storage.updateInvoice(match.id, { status: "Paid", paymentDate, paymentMode: mode || undefined });
+          }
+        }
+      }
+
+      await storage.createPayment({
+        vendorId,
+        invoiceId: matchedInvoiceId,
+        amount,
+        paymentDate,
+        paymentMode: mode,
+        reference,
+        description,
+      });
+
+      if (matchedInvoiceId) paymentCount++;
+      else advanceCount++;
+    }
+  } catch (err: any) {
+    // Payments tab optional
+    if (!err.message?.includes("not found")) {
+      console.error("Error reading Payments tab:", err.message);
+    }
+  }
+
+  return { vendors: vendorNameToId.size, invoices: invoiceCount, payments: paymentCount, advances: advanceCount };
 }

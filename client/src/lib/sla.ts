@@ -1,17 +1,27 @@
+// All vendors: 45-day standard payment window
+export const SLA_DAYS = 45;
+export const SLA_ALERT_DAYS = 40;
+
 export const SLA_THRESHOLDS = {
-  Regular: { alert: 12, escalate: 15, label: "15 business days" },
-  Occasional: { alert: 17, escalate: 21, label: "21 business days" },
-  "One-time": { alert: 25, escalate: 30, label: "30 business days" },
+  Regular: { alert: SLA_ALERT_DAYS, escalate: SLA_DAYS, label: "45 days" },
+  Occasional: { alert: SLA_ALERT_DAYS, escalate: SLA_DAYS, label: "45 days" },
+  "One-time": { alert: SLA_ALERT_DAYS, escalate: SLA_DAYS, label: "45 days" },
 } as const;
 
 export type SlaStatus = "normal" | "alert" | "escalate";
 
-export function getSlaStatus(category: string, ageDays: number): SlaStatus {
-  const thresholds = SLA_THRESHOLDS[category as keyof typeof SLA_THRESHOLDS];
-  if (!thresholds) return "normal";
-  if (ageDays >= thresholds.escalate) return "escalate";
-  if (ageDays >= thresholds.alert) return "alert";
+export function getSlaStatus(_category: string, ageDays: number): SlaStatus {
+  if (ageDays >= SLA_DAYS) return "escalate";
+  if (ageDays >= SLA_ALERT_DAYS) return "alert";
   return "normal";
+}
+
+// Due date classification
+export function getDueClassification(ageDays: number): { label: string; color: string } {
+  if (ageDays <= 30) return { label: "Current", color: "text-green-600" };
+  if (ageDays <= 45) return { label: "Due Soon", color: "text-amber-600" };
+  if (ageDays <= 60) return { label: "Overdue", color: "text-orange-600" };
+  return { label: "Critical", color: "text-red-600" };
 }
 
 export function formatINR(amount: number): string {

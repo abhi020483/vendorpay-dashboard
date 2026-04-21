@@ -1,6 +1,7 @@
 import {
   type Vendor, type InsertVendor, vendors,
   type Invoice, type InsertInvoice, invoices,
+  type Payment, type InsertPayment, payments,
   type SyncConfig, type InsertSyncConfig, syncConfig,
 } from "@shared/schema";
 import { drizzle } from "drizzle-orm/better-sqlite3";
@@ -27,6 +28,13 @@ export interface IStorage {
   createInvoice(invoice: InsertInvoice): Promise<Invoice>;
   updateInvoice(id: number, invoice: Partial<InsertInvoice>): Promise<Invoice | undefined>;
   deleteInvoice(id: number): Promise<void>;
+
+  // Payments
+  getPayments(): Promise<Payment[]>;
+  getPaymentsByVendor(vendorId: number): Promise<Payment[]>;
+  getPaymentsByInvoice(invoiceId: number): Promise<Payment[]>;
+  createPayment(payment: InsertPayment): Promise<Payment>;
+  deleteAllPayments(): Promise<void>;
 
   // Sync Config
   getSyncConfig(): Promise<SyncConfig | undefined>;
@@ -78,6 +86,27 @@ export class DatabaseStorage implements IStorage {
 
   async deleteInvoice(id: number): Promise<void> {
     db.delete(invoices).where(eq(invoices.id, id)).run();
+  }
+
+  // Payments
+  async getPayments(): Promise<Payment[]> {
+    return db.select().from(payments).orderBy(desc(payments.paymentDate)).all();
+  }
+
+  async getPaymentsByVendor(vendorId: number): Promise<Payment[]> {
+    return db.select().from(payments).where(eq(payments.vendorId, vendorId)).all();
+  }
+
+  async getPaymentsByInvoice(invoiceId: number): Promise<Payment[]> {
+    return db.select().from(payments).where(eq(payments.invoiceId, invoiceId)).all();
+  }
+
+  async createPayment(payment: InsertPayment): Promise<Payment> {
+    return db.insert(payments).values(payment).returning().get();
+  }
+
+  async deleteAllPayments(): Promise<void> {
+    db.delete(payments).run();
   }
 
   // Sync Config

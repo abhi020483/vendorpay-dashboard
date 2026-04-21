@@ -56,6 +56,22 @@ export async function registerRoutes(
     res.json(vendorInvoices);
   });
 
+  app.get("/api/vendors/:id/payments", async (req, res) => {
+    const vendorPayments = await storage.getPaymentsByVendor(Number(req.params.id));
+    res.json(vendorPayments);
+  });
+
+  // ============ PAYMENTS ============
+  app.get("/api/payments", async (_req, res) => {
+    const all = await storage.getPayments();
+    res.json(all);
+  });
+
+  app.post("/api/payments", async (req, res) => {
+    const payment = await storage.createPayment(req.body);
+    res.status(201).json(payment);
+  });
+
   app.post("/api/invoices", async (req, res) => {
     const parsed = insertInvoiceSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
@@ -90,6 +106,21 @@ export async function registerRoutes(
   app.get("/api/analytics/summary", async (_req, res) => {
     const allVendors = await storage.getVendors();
     const allInvoices = await storage.getInvoices();
+    const allPayments = await storage.getPayments();
+
+    // Calculate actual paid amount per invoice from payments
+    const paidPerInvoice = new Map<number, number>();
+    let totalAdvances = 0;
+    const advancesByVendor = new Map<number, number>();
+    allPayments.forEach(p => {
+      if (p.invoiceId) {
+        paidPerInvoice.set(p.invoiceId, (paidPerInvoice.get(p.invoiceId) || 0) + p.amount);
+      } else {
+        // Advance / on-account payment
+        totalAdvances += p.amount;
+        advancesByVendor.set(p.vendorId, (advancesByVendor.get(p.vendorId) || 0) + p.amount);
+      }
+    });
 
     const totalVendors = allVendors.length;
     const regularCount = allVendors.filter(v => v.category === "Regular").length;
@@ -228,13 +259,23 @@ export async function registerRoutes(
       }
     });
 
+    // Calculate real paid and outstanding from payment records
+    const totalActualPaid = Array.from(paidPerInvoice.values()).reduce((s, v) => s + v, 0) + totalAdvances;
+    const totalOutstanding = allInvoices.reduce((sum, inv) => {
+      if (inv.status === "Paid") return sum;
+      const paidAmount = paidPerInvoice.get(inv.id) || 0;
+      return sum + Math.max(0, (inv.netPayable || 0) - paidAmount);
+    }, 0);
+
     res.json({
       totalVendors,
       vendorSplit: { regular: regularCount, occasional: occasionalCount, oneTime: oneTimeCount },
       totalPayouts,
-      totalPaid,
+      totalPaid: Math.max(totalPaid, totalActualPaid),
       totalPending,
       totalAccepted,
+      totalOutstanding,
+      totalAdvances,
       invoiceCount: allInvoices.length,
       ageingBuckets,
       serviceSplit,
@@ -245,6 +286,10 @@ export async function registerRoutes(
       weeklyCount,
       vendorAgeing,
       vendorAgeingBuckets,
+      advancesByVendor: Array.from(advancesByVendor.entries()).map(([vid, amt]) => {
+        const v = allVendors.find(vv => vv.id === vid);
+        return { vendorId: vid, vendorName: v?.name || "Unknown", amount: amt };
+      }),
     });
   });
 
@@ -278,7 +323,7 @@ export async function registerRoutes(
         lastSyncAt: new Date().toISOString(),
         sheetsId,
       });
-      console.log(`Sync complete: ${result.vendors} vendors, ${result.invoices} invoices`);
+      console.log(`Sync complete: ${result.vendors} vendors, ${result.invoices} invoices, ${result.payments} payments matched, ${result.advances} advances`);
     } catch (err: any) {
       console.error("Sync failed:", err.message);
       await storage.upsertSyncConfig({ status: "error" });
