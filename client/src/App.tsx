@@ -8,20 +8,24 @@ import Login from "@/pages/login";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Vendors from "@/pages/vendors";
+import VendorInvoices from "@/pages/vendor-invoices";
 import Invoices from "@/pages/invoices";
+import SheetsView from "@/pages/sheets-view";
 import Ageing from "@/pages/ageing";
 import TallyIntegration from "@/pages/tally-integration";
 import { useState } from "react";
 import {
-  LayoutDashboard, Building2, FileText, Clock, Sheet,
+  LayoutDashboard, Building2, FileText, Clock, Sheet, ListChecks, Table2,
   ChevronLeft, Menu
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { path: "/", label: "Dashboard", title: "Dashboard Overview", icon: LayoutDashboard },
   { path: "/vendors", label: "Vendors", title: "Vendor Directory", icon: Building2 },
+  { path: "/vendor-invoices", label: "By Vendor", title: "Invoices by Vendor", icon: ListChecks },
   { path: "/invoices", label: "Invoices", title: "Invoice Tracker", icon: FileText },
   { path: "/ageing", label: "Ageing", title: "Ageing Analysis", icon: Clock },
+  { path: "/sheets", label: "Sheet", title: "Google Sheet View", icon: Table2 },
   { path: "/tally", label: "Integration", title: "Google Sheets & Tally Integration", icon: Sheet },
 ];
 
@@ -126,8 +130,10 @@ function AppRouter() {
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/vendors" component={Vendors} />
+        <Route path="/vendor-invoices" component={VendorInvoices} />
         <Route path="/invoices" component={Invoices} />
         <Route path="/ageing" component={Ageing} />
+        <Route path="/sheets" component={SheetsView} />
         <Route path="/tally" component={TallyIntegration} />
         <Route component={NotFound} />
       </Switch>
