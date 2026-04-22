@@ -1,13 +1,23 @@
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
-import { Clock, TrendingUp, AlertTriangle } from "lucide-react";
+import { Clock, TrendingUp, AlertTriangle, Search } from "lucide-react";
 import { formatINR, getSlaStatus, SLA_THRESHOLDS } from "@/lib/sla";
 
+const SLA_FILTERS = ["All", "On Track", "Alert", "Overdue"] as const;
+const CATEGORY_FILTERS = ["All", "Regular", "Occasional", "One-time"] as const;
+
 export default function Ageing() {
+  const [search, setSearch] = useState("");
+  const [slaFilter, setSlaFilter] = useState<string>("All");
+  const [categoryFilter, setCategoryFilter] = useState<string>("All");
+
   const { data: analytics, isLoading } = useQuery<any>({
     queryKey: ["/api/analytics/summary"],
   });
@@ -119,8 +129,60 @@ export default function Ageing() {
 
       {/* Vendor-wise Ageing Table */}
       <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold">Vendor-wise Outstanding Ageing</CardTitle>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <CardTitle className="text-base font-semibold">Vendor-wise Outstanding Ageing</CardTitle>
+          </div>
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-3 pt-3">
+            <div className="relative flex-1 min-w-[220px] max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search vendor..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-8 h-8 text-xs"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] uppercase text-muted-foreground font-medium">SLA:</span>
+              {SLA_FILTERS.map(f => (
+                <Button
+                  key={f}
+                  size="sm"
+                  variant={slaFilter === f ? "default" : "outline"}
+                  onClick={() => setSlaFilter(f)}
+                  className="text-[11px] h-7 px-2.5"
+                >
+                  {f}
+                </Button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] uppercase text-muted-foreground font-medium">Category:</span>
+              {CATEGORY_FILTERS.map(f => (
+                <Button
+                  key={f}
+                  size="sm"
+                  variant={categoryFilter === f ? "default" : "outline"}
+                  onClick={() => setCategoryFilter(f)}
+                  className="text-[11px] h-7 px-2.5"
+                >
+                  {f}
+                </Button>
+              ))}
+            </div>
+            {(search || slaFilter !== "All" || categoryFilter !== "All") && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => { setSearch(""); setSlaFilter("All"); setCategoryFilter("All"); }}
+                className="text-[11px] h-7 px-2.5 text-muted-foreground"
+              >
+                Clear
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -139,11 +201,25 @@ export default function Ageing() {
                 </tr>
               </thead>
               <tbody>
-                {vendorAgeingBuckets.length > 0 ? vendorAgeingBuckets
-                  .sort((a: any, b: any) => b.total - a.total)
-                  .map((row: any, idx: number) => {
-                    const maxBucketDays = row.buckets["60+"] > 0 ? 65 : row.buckets["46-60"] > 0 ? 50 : row.buckets["31-45"] > 0 ? 40 : row.buckets["16-30"] > 0 ? 25 : 10;
-                    const slaStatus = getSlaStatus(row.category, maxBucketDays);
+                {(() => {
+                  const filtered = vendorAgeingBuckets
+                    .map((row: any) => {
+                      const maxBucketDays = row.buckets["60+"] > 0 ? 65 : row.buckets["46-60"] > 0 ? 50 : row.buckets["31-45"] > 0 ? 40 : row.buckets["16-30"] > 0 ? 25 : 10;
+                      const slaStatus = getSlaStatus(row.category, maxBucketDays);
+                      return { ...row, slaStatus, maxBucketDays };
+                    })
+                    .filter((row: any) => {
+                      if (search && !row.vendorName.toLowerCase().includes(search.toLowerCase())) return false;
+                      if (categoryFilter !== "All" && row.category !== categoryFilter) return false;
+                      if (slaFilter === "On Track" && row.slaStatus !== "normal") return false;
+                      if (slaFilter === "Alert" && row.slaStatus !== "alert") return false;
+                      if (slaFilter === "Overdue" && row.slaStatus !== "escalate") return false;
+                      return true;
+                    })
+                    .sort((a: any, b: any) => b.total - a.total);
+
+                  return filtered.length > 0 ? filtered.map((row: any, idx: number) => {
+                    const slaStatus = row.slaStatus;
                     const rowBg = slaStatus === "escalate" ? "bg-red-50" : slaStatus === "alert" ? "bg-amber-50" : "";
 
                     return (
@@ -174,8 +250,13 @@ export default function Ageing() {
                       </tr>
                     );
                   }) : (
-                  <tr><td colSpan={9} className="py-12 text-center text-muted-foreground">All invoices are paid — no outstanding amounts</td></tr>
-                )}
+                    <tr><td colSpan={9} className="py-12 text-center text-muted-foreground">
+                      {vendorAgeingBuckets.length === 0
+                        ? "All invoices are paid — no outstanding amounts"
+                        : "No vendors match the current filters"}
+                    </td></tr>
+                  );
+                })()}
               </tbody>
             </table>
           </div>
