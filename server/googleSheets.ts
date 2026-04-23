@@ -134,8 +134,10 @@ function parseDate(val: string): string | null {
 }
 
 function parseInvoice(row: Record<string, string>, vendorNameToId: Map<string, number>): InsertInvoice | null {
-  const vendorName = findCol(row, "VendorName", "Vendor Name", "Vendor");
-  const vendorId = vendorNameToId.get(vendorName);
+  const rawName = findCol(row, "VendorName", "Vendor Name", "Vendor");
+  if (!rawName) return null;
+  const normKey = rawName.trim().replace(/\s+/g, " ").toLowerCase();
+  const vendorId = vendorNameToId.get(normKey);
   if (!vendorId) return null;
 
   const amount = parseFloat(findCol(row, "BaseAmount", "Base Amount", "Amount")) || 0;
@@ -187,14 +189,19 @@ export async function syncFromSheets(spreadsheetId: string): Promise<{ vendors: 
 
   const vendorNameToId = new Map<string, number>();
 
+  // Helper: normalize vendor name for matching
+  const normalize = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
+
   // 2. Try to fetch Vendor Master tab
   try {
     const vendorRows = await fetchSheetAsCSV(spreadsheetId, "Vendor Master");
     for (const row of vendorRows) {
       const vendorData = parseVendor(row);
       if (!vendorData.name || vendorData.name === "Unknown") continue;
+      // Trim name of any newlines/extra whitespace
+      vendorData.name = vendorData.name.trim().replace(/\s+/g, " ");
       const created = await storage.createVendor(vendorData);
-      vendorNameToId.set(vendorData.name, created.id);
+      vendorNameToId.set(normalize(vendorData.name), created.id);
     }
   } catch (err: any) {
     console.log("Vendor Master tab not found or empty, will auto-create vendors from invoices");
@@ -207,34 +214,31 @@ export async function syncFromSheets(spreadsheetId: string): Promise<{ vendors: 
     throw new Error('No data found in "Invoice Register" tab.');
   }
 
-  // 4. Auto-create vendors from invoice data if Vendor Master was empty
-  if (vendorNameToId.size === 0) {
-    const uniqueVendors = new Set<string>();
-    for (const row of invoiceRows) {
-      const name = findCol(row, "VendorName", "Vendor Name", "Vendor");
-      if (name && !uniqueVendors.has(name)) uniqueVendors.add(name);
-    }
+  // 4. Auto-create any missing vendors from invoice data (not just when master is empty)
+  const vendorInvCount = new Map<string, number>();
+  const invoiceVendorMap = new Map<string, string>(); // normalized -> original name
+  for (const row of invoiceRows) {
+    const rawName = findCol(row, "VendorName", "Vendor Name", "Vendor");
+    if (!rawName) continue;
+    const cleanName = rawName.trim().replace(/\s+/g, " ");
+    const key = normalize(cleanName);
+    if (!invoiceVendorMap.has(key)) invoiceVendorMap.set(key, cleanName);
+    vendorInvCount.set(key, (vendorInvCount.get(key) || 0) + 1);
+  }
 
-    // Count invoices per vendor to determine category
-    const vendorInvCount = new Map<string, number>();
-    for (const row of invoiceRows) {
-      const name = findCol(row, "VendorName", "Vendor Name", "Vendor");
-      if (name) vendorInvCount.set(name, (vendorInvCount.get(name) || 0) + 1);
-    }
-
-    for (const name of Array.from(uniqueVendors)) {
-      const count = vendorInvCount.get(name) || 1;
-      const category = count >= 6 ? "Regular" : count >= 2 ? "Occasional" : "One-time";
-      const created = await storage.createVendor({
-        name,
-        category,
-        service: "General Services",
-        status: "Active",
-        contactPerson: null, email: null, phone: null,
-        gstin: null, pan: null, bankAccount: null, ifsc: null, address: null,
-      });
-      vendorNameToId.set(name, created.id);
-    }
+  for (const [key, displayName] of Array.from(invoiceVendorMap.entries())) {
+    if (vendorNameToId.has(key)) continue; // already in Vendor Master
+    const count = vendorInvCount.get(key) || 1;
+    const category = count >= 6 ? "Regular" : count >= 2 ? "Occasional" : "One-time";
+    const created = await storage.createVendor({
+      name: displayName,
+      category,
+      service: "General Services",
+      status: "Active",
+      contactPerson: null, email: null, phone: null,
+      gstin: null, pan: null, bankAccount: null, ifsc: null, address: null,
+    });
+    vendorNameToId.set(key, created.id);
   }
 
   // 5. Insert invoices
@@ -259,8 +263,9 @@ export async function syncFromSheets(spreadsheetId: string): Promise<{ vendors: 
   try {
     const paymentRows = await fetchSheetAsCSV(spreadsheetId, "Payments");
     for (const row of paymentRows) {
-      const vendorName = findCol(row, "VendorName", "Vendor Name", "Vendor");
-      const vendorId = vendorNameToId.get(vendorName);
+      const rawVendorName = findCol(row, "VendorName", "Vendor Name", "Vendor");
+      if (!rawVendorName) continue;
+      const vendorId = vendorNameToId.get(normalize(rawVendorName));
       if (!vendorId) continue;
 
       const amount = parseFloat(findCol(row, "Amount", "PaymentAmount", "Payment Amount")) || 0;
