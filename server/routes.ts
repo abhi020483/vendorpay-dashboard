@@ -129,10 +129,11 @@ export async function registerRoutes(
 
     const totalPayouts = allInvoices.reduce((sum, inv) => sum + (inv.netPayable || 0), 0);
     const paidInvoices = allInvoices.filter(i => i.status === "Paid");
-    const pendingInvoices = allInvoices.filter(i => i.status === "Pending");
+    // Pending = everything that's NOT Paid (i.e., no payment date / no "paid" status)
+    const nonPaidInvoices = allInvoices.filter(i => i.status !== "Paid" && i.status !== "Rejected");
     const acceptedInvoices = allInvoices.filter(i => i.status === "Accepted");
     const totalPaid = paidInvoices.reduce((sum, inv) => sum + (inv.netPayable || 0), 0);
-    const totalPending = pendingInvoices.reduce((sum, inv) => sum + (inv.netPayable || 0), 0);
+    const totalPending = nonPaidInvoices.reduce((sum, inv) => sum + (inv.netPayable || 0), 0);
     const totalAccepted = acceptedInvoices.reduce((sum, inv) => sum + (inv.netPayable || 0), 0);
 
     // Ageing data (spec buckets: 0-15, 16-30, 31-45, 46-60, 60+)
