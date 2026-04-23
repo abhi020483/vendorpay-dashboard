@@ -145,24 +145,27 @@ function parseInvoice(row: Record<string, string>, vendorNameToId: Map<string, n
   const tds = parseFloat(findCol(row, "TDSAmount", "TDS Amount", "TDS")) || 0;
   const netPayable = parseFloat(findCol(row, "NetPayable", "Net Payable")) || (amount + gst - tds);
 
-  // Normalize status - handle PAID, paid, Paid, "PAID ", etc.
-  const rawStatus = (findCol(row, "Status") || "").trim().toLowerCase();
-  let status = "Pending";
-  if (rawStatus.includes("paid")) status = "Paid";
-  else if (rawStatus.includes("accept")) status = "Accepted";
-  else if (rawStatus.includes("reject")) status = "Rejected";
-  else if (rawStatus.includes("pending")) status = "Pending";
-
   const invoiceDate = parseDate(findCol(row, "InvoiceDate", "Invoice Date")) || new Date().toISOString().split("T")[0];
   const receiptDate = parseDate(findCol(row, "ReceiptDate", "Receipt Date")) || invoiceDate;
+  const acceptanceDate = parseDate(findCol(row, "AcceptanceDate", "Acceptance Date"));
+  const paymentDate = parseDate(findCol(row, "PaymentDate", "Payment Date"));
+
+  // Normalize status - handle PAID, paid, Paid, "PAID ", etc.
+  // Also: if Payment Date is filled, automatically treat as Paid
+  const rawStatus = (findCol(row, "Status") || "").trim().toLowerCase();
+  let status = "Pending";
+  if (rawStatus.includes("paid") || paymentDate) status = "Paid";
+  else if (rawStatus.includes("accept") || acceptanceDate) status = "Accepted";
+  else if (rawStatus.includes("reject")) status = "Rejected";
+  else if (rawStatus.includes("pending")) status = "Pending";
 
   return {
     vendorId,
     invoiceNumber: findCol(row, "InvoiceID", "InvoiceNumber", "Invoice Number", "Invoice No", "Invoice #", "Inv ID") || `INV-${Date.now()}`,
     invoiceDate,
     receiptDate,
-    acceptanceDate: parseDate(findCol(row, "AcceptanceDate", "Acceptance Date")),
-    paymentDate: parseDate(findCol(row, "PaymentDate", "Payment Date")),
+    acceptanceDate,
+    paymentDate,
     amount,
     gstAmount: gst,
     tdsAmount: tds,
