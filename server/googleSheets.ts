@@ -150,12 +150,13 @@ function parseInvoice(row: Record<string, string>, vendorNameToId: Map<string, n
   const acceptanceDate = parseDate(findCol(row, "AcceptanceDate", "Acceptance Date"));
   const paymentDate = parseDate(findCol(row, "PaymentDate", "Payment Date"));
 
-  // Normalize status - handle PAID, paid, Paid, "PAID ", etc.
-  // Also: if Payment Date is filled, automatically treat as Paid
+  // Status is determined ONLY by explicit Status column, not by date fields.
+  // Payment Date in the sheet is a booking/accounting date, not actual payment completion.
+  // Actual paid status comes from matching Payments sheet OR explicit "Paid" in Status.
   const rawStatus = (findCol(row, "Status") || "").trim().toLowerCase();
   let status = "Pending";
-  if (rawStatus.includes("paid") || paymentDate) status = "Paid";
-  else if (rawStatus.includes("accept") || acceptanceDate) status = "Accepted";
+  if (rawStatus.includes("paid")) status = "Paid";
+  else if (rawStatus.includes("accept")) status = "Accepted";
   else if (rawStatus.includes("reject")) status = "Rejected";
   else if (rawStatus.includes("pending")) status = "Pending";
 
