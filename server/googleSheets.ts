@@ -144,7 +144,14 @@ function parseInvoice(row: Record<string, string>, vendorNameToId: Map<string, n
   const gst = parseFloat(findCol(row, "GSTAmount", "GST Amount", "GST")) || 0;
   const tds = parseFloat(findCol(row, "TDSAmount", "TDS Amount", "TDS")) || 0;
   const netPayable = parseFloat(findCol(row, "NetPayable", "Net Payable")) || (amount + gst - tds);
-  const status = findCol(row, "Status") || "Pending";
+
+  // Normalize status - handle PAID, paid, Paid, "PAID ", etc.
+  const rawStatus = (findCol(row, "Status") || "").trim().toLowerCase();
+  let status = "Pending";
+  if (rawStatus.includes("paid")) status = "Paid";
+  else if (rawStatus.includes("accept")) status = "Accepted";
+  else if (rawStatus.includes("reject")) status = "Rejected";
+  else if (rawStatus.includes("pending")) status = "Pending";
 
   const invoiceDate = parseDate(findCol(row, "InvoiceDate", "Invoice Date")) || new Date().toISOString().split("T")[0];
   const receiptDate = parseDate(findCol(row, "ReceiptDate", "Receipt Date")) || invoiceDate;
@@ -160,7 +167,7 @@ function parseInvoice(row: Record<string, string>, vendorNameToId: Map<string, n
     gstAmount: gst,
     tdsAmount: tds,
     netPayable,
-    status: ["Pending", "Accepted", "Paid", "Rejected"].includes(status) ? status : "Pending",
+    status,
     description: findCol(row, "Description", "Narration", "Remarks") || null,
     paymentMode: findCol(row, "PaymentMode", "Payment Mode", "Mode") || null,
     paymentReference: findCol(row, "PaymentReference", "Payment Reference", "Reference") || null,
