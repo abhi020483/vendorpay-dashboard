@@ -190,13 +190,20 @@ export async function writeInvoiceStatus(
   // Status updates are saved locally in SQLite only
 }
 
+// Simple in-memory lock to prevent concurrent syncs causing duplicates
+let syncInProgress = false;
+
 // Main sync: fetch CSV from Google Sheets -> parse -> insert into SQLite
 export async function syncFromSheets(spreadsheetId: string): Promise<{ vendors: number; invoices: number; payments: number; advances: number }> {
-  // 1. Clear existing data
-  const existingInvoices = await storage.getInvoices();
-  for (const inv of existingInvoices) await storage.deleteInvoice(inv.id);
-  const existingVendors = await storage.getVendors();
-  for (const v of existingVendors) await storage.deleteVendor(v.id);
+  if (syncInProgress) {
+    throw new Error("A sync is already in progress. Please wait a moment and try again.");
+  }
+  syncInProgress = true;
+  try {
+    // 1. Clear existing data (bulk delete is atomic)
+    await storage.deleteAllPayments();
+    await storage.deleteAllInvoices();
+    await storage.deleteAllVendors();
 
   const vendorNameToId = new Map<string, number>();
 
@@ -322,5 +329,8 @@ export async function syncFromSheets(spreadsheetId: string): Promise<{ vendors: 
     }
   }
 
-  return { vendors: vendorNameToId.size, invoices: invoiceCount, payments: paymentCount, advances: advanceCount };
+    return { vendors: vendorNameToId.size, invoices: invoiceCount, payments: paymentCount, advances: advanceCount };
+  } finally {
+    syncInProgress = false;
+  }
 }

@@ -35,6 +35,8 @@ export interface IStorage {
   getPaymentsByInvoice(invoiceId: number): Promise<Payment[]>;
   createPayment(payment: InsertPayment): Promise<Payment>;
   deleteAllPayments(): Promise<void>;
+  deleteAllVendors(): Promise<void>;
+  deleteAllInvoices(): Promise<void>;
 
   // Sync Config
   getSyncConfig(): Promise<SyncConfig | undefined>;
@@ -107,6 +109,14 @@ export class DatabaseStorage implements IStorage {
 
   async deleteAllPayments(): Promise<void> {
     db.delete(payments).run();
+  }
+
+  async deleteAllVendors(): Promise<void> {
+    db.delete(vendors).run();
+  }
+
+  async deleteAllInvoices(): Promise<void> {
+    db.delete(invoices).run();
   }
 
   // Sync Config

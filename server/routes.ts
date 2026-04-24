@@ -510,13 +510,14 @@ export async function registerRoutes(
     });
   });
 
-  // DELETE /api/import/clear — clear all data for fresh import
+  // DELETE /api/import/clear — clear all data for fresh import (bulk, atomic)
   app.delete("/api/import/clear", async (_req, res) => {
-    const invoices = await storage.getInvoices();
-    for (const inv of invoices) await storage.deleteInvoice(inv.id);
-    const vendors = await storage.getVendors();
-    for (const v of vendors) await storage.deleteVendor(v.id);
-    res.json({ message: "All data cleared", vendorsDeleted: vendors.length, invoicesDeleted: invoices.length });
+    const vendorCount = (await storage.getVendors()).length;
+    const invoiceCount = (await storage.getInvoices()).length;
+    await storage.deleteAllPayments();
+    await storage.deleteAllInvoices();
+    await storage.deleteAllVendors();
+    res.json({ message: "All data cleared", vendorsDeleted: vendorCount, invoicesDeleted: invoiceCount });
   });
 
   // Seed sample data
