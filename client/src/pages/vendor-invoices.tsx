@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, ChevronDown, ChevronRight, Building2 } from "lucide-react";
+import { Search, ChevronDown, ChevronRight, Building2, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { formatINR, formatDate, getDaysAge, getDueClassification } from "@/lib/sla";
 import type { Vendor, Invoice } from "@shared/schema";
 
@@ -17,9 +17,30 @@ function statusBadgeClass(status: string) {
   }
 }
 
+type SortKey = "name" | "invoiceCount" | "totalInvoiced" | "totalOutstanding" | "advances" | "overdueCount";
+type SortDir = "asc" | "desc";
+
 export default function VendorInvoices() {
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [sortKey, setSortKey] = useState<SortKey>("totalOutstanding");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortKey(key);
+      setSortDir(key === "name" ? "asc" : "desc");
+    }
+  }
+
+  function SortIcon({ col }: { col: SortKey }) {
+    if (sortKey !== col) return <ArrowUpDown className="h-3 w-3 inline ml-1 opacity-40" />;
+    return sortDir === "desc"
+      ? <ArrowDown className="h-3 w-3 inline ml-1" />
+      : <ArrowUp className="h-3 w-3 inline ml-1" />;
+  }
 
   const { data: vendors = [], isLoading: loadingVendors } = useQuery<Vendor[]>({
     queryKey: ["/api/vendors"],
@@ -90,10 +111,24 @@ export default function VendorInvoices() {
       }
     });
 
-    return Array.from(byVendor.values())
-      .filter(e => e.invoices.length > 0)
-      .sort((a, b) => b.totalOutstanding - a.totalOutstanding);
-  }, [vendors, invoices, payments]);
+    const arr = Array.from(byVendor.values()).filter(e => e.invoices.length > 0);
+    const dir = sortDir === "asc" ? 1 : -1;
+    arr.sort((a, b) => {
+      let va: any, vb: any;
+      switch (sortKey) {
+        case "name": va = a.vendor.name.toLowerCase(); vb = b.vendor.name.toLowerCase(); break;
+        case "invoiceCount": va = a.invoices.length; vb = b.invoices.length; break;
+        case "totalInvoiced": va = a.totalInvoiced; vb = b.totalInvoiced; break;
+        case "totalOutstanding": va = a.totalOutstanding; vb = b.totalOutstanding; break;
+        case "advances": va = a.advances; vb = b.advances; break;
+        case "overdueCount": va = a.overdueCount; vb = b.overdueCount; break;
+      }
+      if (va < vb) return -1 * dir;
+      if (va > vb) return 1 * dir;
+      return 0;
+    });
+    return arr;
+  }, [vendors, invoices, payments, sortKey, sortDir]);
 
   const filtered = vendorData.filter(e =>
     !search || e.vendor.name.toLowerCase().includes(search.toLowerCase())
@@ -135,14 +170,26 @@ export default function VendorInvoices() {
             <div className="py-12 text-center text-muted-foreground">No vendors with invoices found</div>
           ) : (
             <div>
-              {/* Header */}
-              <div className="grid grid-cols-12 gap-2 px-4 py-3 border-b bg-muted/30 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                <div className="col-span-4">Vendor</div>
-                <div className="col-span-1 text-center">Invoices</div>
-                <div className="col-span-2 text-right">Total Invoiced</div>
-                <div className="col-span-2 text-right">Outstanding</div>
-                <div className="col-span-2 text-right">Advances</div>
-                <div className="col-span-1 text-center">Overdue</div>
+              {/* Header - clickable for sorting */}
+              <div className="grid grid-cols-12 gap-2 px-4 py-3 border-b bg-muted/30 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground select-none">
+                <button onClick={() => toggleSort("name")} className="col-span-4 text-left hover:text-foreground cursor-pointer">
+                  Vendor<SortIcon col="name" />
+                </button>
+                <button onClick={() => toggleSort("invoiceCount")} className="col-span-1 text-center hover:text-foreground cursor-pointer">
+                  Invoices<SortIcon col="invoiceCount" />
+                </button>
+                <button onClick={() => toggleSort("totalInvoiced")} className="col-span-2 text-right hover:text-foreground cursor-pointer">
+                  Total Invoiced<SortIcon col="totalInvoiced" />
+                </button>
+                <button onClick={() => toggleSort("totalOutstanding")} className="col-span-2 text-right hover:text-foreground cursor-pointer">
+                  Outstanding<SortIcon col="totalOutstanding" />
+                </button>
+                <button onClick={() => toggleSort("advances")} className="col-span-2 text-right hover:text-foreground cursor-pointer">
+                  Advances<SortIcon col="advances" />
+                </button>
+                <button onClick={() => toggleSort("overdueCount")} className="col-span-1 text-center hover:text-foreground cursor-pointer">
+                  Overdue<SortIcon col="overdueCount" />
+                </button>
               </div>
 
               {filtered.map(entry => {
