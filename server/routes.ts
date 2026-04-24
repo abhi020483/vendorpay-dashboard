@@ -150,6 +150,22 @@ export async function registerRoutes(
       else ageingBuckets["60+"]++;
     });
 
+    // Category-wise payout split (Regular / Occasional / One-time)
+    const categoryPayouts: Record<string, { total: number; paid: number; pending: number; count: number }> = {
+      Regular: { total: 0, paid: 0, pending: 0, count: 0 },
+      Occasional: { total: 0, paid: 0, pending: 0, count: 0 },
+      "One-time": { total: 0, paid: 0, pending: 0, count: 0 },
+    };
+    allInvoices.forEach(inv => {
+      const vendor = allVendors.find(v => v.id === inv.vendorId);
+      if (!vendor) return;
+      const cat = categoryPayouts[vendor.category] ? vendor.category : "Regular";
+      categoryPayouts[cat].total += inv.netPayable || 0;
+      categoryPayouts[cat].count += 1;
+      if (inv.status === "Paid") categoryPayouts[cat].paid += inv.netPayable || 0;
+      else categoryPayouts[cat].pending += inv.netPayable || 0;
+    });
+
     // Service-wise split
     const serviceSplit: Record<string, number> = {};
     allInvoices.forEach(inv => {
@@ -280,6 +296,7 @@ export async function registerRoutes(
       invoiceCount: allInvoices.length,
       ageingBuckets,
       serviceSplit,
+      categoryPayouts,
       vendorBusiness: Object.values(vendorBusiness),
       monthlyPayouts,
       monthlyCount,

@@ -98,6 +98,14 @@ export default function Dashboard() {
     bucket, count: count as number, fill: AGEING_COLORS[idx] || AGEING_COLORS[4],
   }));
 
+  // Category payouts (Regular / Occasional / One-time) - total, paid, pending
+  const categoryPayouts = analytics.categoryPayouts || {};
+  const categoryPayoutData = [
+    { category: "Regular", paid: categoryPayouts.Regular?.paid || 0, pending: categoryPayouts.Regular?.pending || 0, total: categoryPayouts.Regular?.total || 0, count: categoryPayouts.Regular?.count || 0 },
+    { category: "Occasional", paid: categoryPayouts.Occasional?.paid || 0, pending: categoryPayouts.Occasional?.pending || 0, total: categoryPayouts.Occasional?.total || 0, count: categoryPayouts.Occasional?.count || 0 },
+    { category: "One-time", paid: categoryPayouts["One-time"]?.paid || 0, pending: categoryPayouts["One-time"]?.pending || 0, total: categoryPayouts["One-time"]?.total || 0, count: categoryPayouts["One-time"]?.count || 0 },
+  ];
+
   return (
     <div className="p-6 space-y-6">
       {/* KPI Cards */}
@@ -249,6 +257,51 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Category Payouts: Regular / Occasional / One-time */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <CardTitle className="text-base font-semibold">Payout Split by Vendor Category</CardTitle>
+            <div className="text-xs text-muted-foreground">
+              Paid vs Pending amount by vendor type
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+            {categoryPayoutData.map((cat, i) => {
+              const colors = ["bg-blue-50 border-blue-200 text-blue-700", "bg-amber-50 border-amber-200 text-amber-700", "bg-gray-50 border-gray-200 text-gray-700"];
+              return (
+                <div key={cat.category} className={`p-4 rounded-lg border ${colors[i]}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-semibold">{cat.category}</div>
+                    <div className="text-[11px] opacity-70">{cat.count} invoices</div>
+                  </div>
+                  <div className="text-2xl font-bold mt-2">{formatINR(cat.total)}</div>
+                  <div className="flex items-center gap-3 mt-2 text-[11px]">
+                    <span className="text-green-600">● Paid: {formatINR(cat.paid)}</span>
+                    <span className="text-amber-600">● Pending: {formatINR(cat.pending)}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={categoryPayoutData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,10%,90%)" />
+                <XAxis dataKey="category" tick={{ fontSize: 12 }} tickLine={false} />
+                <YAxis tick={{ fontSize: 11 }} tickLine={false} tickFormatter={(v) => `₹${(v / 100000).toFixed(0)}L`} />
+                <Tooltip formatter={(value: number) => formatINR(value)} />
+                <Legend />
+                <Bar dataKey="paid" name="Paid" stackId="a" fill="#22C55E" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="pending" name="Pending" stackId="a" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
