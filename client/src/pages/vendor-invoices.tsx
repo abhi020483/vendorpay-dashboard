@@ -21,9 +21,30 @@ export default function VendorInvoices() {
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
-  const { data: vendors = [], isLoading: loadingVendors } = useQuery<Vendor[]>({ queryKey: ["/api/vendors"] });
-  const { data: invoices = [], isLoading: loadingInvoices } = useQuery<Invoice[]>({ queryKey: ["/api/invoices"] });
-  const { data: payments = [] } = useQuery<any[]>({ queryKey: ["/api/payments"] });
+  const { data: vendors = [], isLoading: loadingVendors } = useQuery<Vendor[]>({
+    queryKey: ["/api/vendors"],
+    queryFn: async () => {
+      const res = await fetch("/api/vendors");
+      if (!res.ok) throw new Error("Failed to fetch vendors");
+      return res.json();
+    },
+  });
+  const { data: invoices = [], isLoading: loadingInvoices } = useQuery<Invoice[]>({
+    queryKey: ["/api/invoices"],
+    queryFn: async () => {
+      const res = await fetch("/api/invoices");
+      if (!res.ok) throw new Error("Failed to fetch invoices");
+      return res.json();
+    },
+  });
+  const { data: payments = [] } = useQuery<any[]>({
+    queryKey: ["/api/payments"],
+    queryFn: async () => {
+      const res = await fetch("/api/payments");
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
 
   const vendorData = useMemo(() => {
     const byVendor = new Map<number, {
